@@ -4,7 +4,9 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  GoogleAuthProvider,
+  signInWithPopup
 } from 'firebase/auth';
 import { ref, set, get } from 'firebase/database';
 import { auth, db } from '../firebase/config';
@@ -19,6 +21,7 @@ interface AuthContextType {
   setupPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
   hasSetupPin: boolean;
+  signInWithGoogle: () => Promise<FirebaseUser>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -110,6 +113,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  // Sign in with Google
+  const signInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const { user } = await signInWithPopup(auth, provider);
+
+    // Check if user data already exists
+    const userRef = ref(db, `users/${user.uid}/storeInfo`);
+    const snapshot = await get(userRef);
+
+    if (!snapshot.exists()) {
+      // Create initial user data
+      await set(ref(db, `users/${user.uid}/storeInfo`), {
+        name: 'My Store',
+        address: '',
+        phone: ''
+      });
+    }
+
+    // Log activity
+    await addActivityLog(user.uid, 'Logged in with Google');
+
+    return user;
+  };
+
   const value = {
     currentUser,
     loading,
@@ -118,7 +145,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logOut,
     setupPin,
     verifyPin,
-    hasSetupPin
+    hasSetupPin,
+    signInWithGoogle
   };
 
   return (

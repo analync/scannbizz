@@ -4,15 +4,13 @@ import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDpnQWyB4Jj0aAbQVb5JMuHKaf6T6jDduw",
-  authDomain: "emplo1-5a205.firebaseapp.com",
-  databaseURL: "https://emplo1-5a205-default-rtdb.firebaseio.com",
-  projectId: "emplo1-5a205",
-  storageBucket: "emplo1-5a205.firebasestorage.app",
-  messagingSenderId: "1082535725822",
-  appId: "1:1082535725822:web:fa59e1fbf49fe1bb16f3af",
-  measurementId: "G-L63SWW47WF"
-};
+    apiKey: "AIzaSyBV1j0FJzwKy_wpyLPcJ_FA9EqphkVh2_g",
+    authDomain: "scanbizz-100d6.firebaseapp.com",
+    projectId: "scanbizz-100d6",
+    storageBucket: "scanbizz-100d6.firebasestorage.app",
+    messagingSenderId: "710419136154",
+    appId: "1:710419136154:web:c7d3fc6a3c0722b3e2e923"
+  };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
