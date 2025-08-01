@@ -9,7 +9,8 @@ const firebaseConfig = {
     projectId: "scanbizz-100d6",
     storageBucket: "scanbizz-100d6.firebasestorage.app",
     messagingSenderId: "710419136154",
-    appId: "1:710419136154:web:c7d3fc6a3c0722b3e2e923"
+    appId: "1:710419136154:web:c7d3fc6a3c0722b3e2e923",
+    databaseURL: "https://scanbizz-100d6-default-rtdb.firebaseio.com"
   };
 
 // Initialize Firebase
