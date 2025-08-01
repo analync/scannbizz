@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -12,8 +12,14 @@ const PinSetup: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const confirmRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const { setupPin } = useAuth();
+  const { setupPin, hasSetupPin } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (hasSetupPin) {
+      navigate('/');
+    }
+  }, [hasSetupPin, navigate]);
 
   const handlePinChange = (index: number, value: string, isConfirm: boolean = false) => {
     if (value.length > 1) {
@@ -104,7 +110,6 @@ const PinSetup: React.FC = () => {
     try {
       await setupPin(pinString);
       toast.success('PIN set up successfully!');
-      navigate('/');
     } catch (error) {
       console.error('PIN setup error:', error);
       toast.error('Failed to set up PIN. Please try again.');
