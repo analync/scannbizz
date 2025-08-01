@@ -24,8 +24,12 @@ const Login: React.FC = () => {
     setLoading(true);
     
     try {
-      await logIn(email, password);
-      navigate('/pin-verify');
+      const { hasPin } = await logIn(email, password);
+      if (hasPin) {
+        navigate('/pin-verify');
+      } else {
+        navigate('/pin-setup');
+      }
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Failed to log in. Please check your credentials.');
@@ -37,8 +41,12 @@ const Login: React.FC = () => {
   const handleGoogleLogin = async () => {
     setGoogleLoading(true);
     try {
-      await logInWithGoogle();
-      navigate('/pin-verify');
+      const { hasPin } = await logInWithGoogle();
+      if (hasPin) {
+        navigate('/pin-verify');
+      } else {
+        navigate('/pin-setup');
+      }
     } catch (error) {
       console.error('Google login error:', error);
       toast.error('Failed to log in with Google. Please try again.');
