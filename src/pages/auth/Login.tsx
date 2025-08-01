@@ -9,7 +9,8 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { logIn } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const { logIn, logInWithGoogle } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,6 +34,19 @@ const Login: React.FC = () => {
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    try {
+      await logInWithGoogle();
+      navigate('/pin-verify');
+    } catch (error) {
+      console.error('Google login error:', error);
+      toast.error('Failed to log in with Google. Please try again.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gradient-to-br from-primary-50 to-primary-100 dark:from-gray-900 dark:to-primary-950">
       <motion.div
@@ -43,12 +57,12 @@ const Login: React.FC = () => {
       >
         <div className="text-center mb-8">
           <motion.div
-            className="mx-auto w-16 h-16 bg-primary-500 text-white rounded-full flex items-center justify-center mb-4"
+            className="mx-auto w-24 h-24 mb-4"
             initial={{ scale: 0.5, rotate: -10 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', damping: 10, delay: 0.2 }}
           >
-            <ShoppingBag size={30} />
+            <img src="/src/assets/logo.png" alt="ScannBizz Logo" className="w-full h-full object-contain" />
           </motion.div>
           
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -122,6 +136,33 @@ const Login: React.FC = () => {
           </button>
         </form>
         
+        <div className="my-4 flex items-center">
+          <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+          <span className="mx-4 text-sm text-gray-500 dark:text-gray-400">OR</span>
+          <div className="flex-grow border-t border-gray-300 dark:border-gray-600"></div>
+        </div>
+
+        <button
+          onClick={handleGoogleLogin}
+          className="btn btn-secondary w-full"
+          disabled={googleLoading || loading}
+        >
+          {googleLoading ? (
+            <span className="flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Loading...
+            </span>
+          ) : (
+            <span className="flex items-center justify-center">
+              <svg className="mr-2 -ml-1 w-4 h-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512"><path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 23.4 172.9 61.9l-76.2 76.2C322.3 121.3 287.4 96 248 96c-88.8 0-160.1 71.1-160.1 160.1s71.3 160.1 160.1 160.1c98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path></svg>
+              Sign in with Google
+            </span>
+          )}
+        </button>
+
         <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
           Don't have an account?{' '}
           <Link to="/signup" className="font-medium text-primary-600 dark:text-primary-400 hover:underline">
