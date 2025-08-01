@@ -13,12 +13,17 @@ import { ref, set, get } from 'firebase/database';
 import { auth, db } from '../firebase/config';
 import { addActivityLog } from '../utils/activityLog';
 
+interface AuthResult {
+  user: FirebaseUser;
+  hasPin: boolean;
+}
+
 interface AuthContextType {
   currentUser: FirebaseUser | null;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<FirebaseUser>;
-  logIn: (email: string, password: string) => Promise<FirebaseUser>;
-  logInWithGoogle: () => Promise<FirebaseUser>;
+  logIn: (email: string, password: string) => Promise<AuthResult>;
+  logInWithGoogle: () => Promise<AuthResult>;
   logOut: () => Promise<void>;
   setupPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
@@ -76,10 +81,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Log in existing user
-  const logIn = async (email: string, password: string) => {
+  const logIn = async (email: string, password: string): Promise<AuthResult> => {
     const { user } = await signInWithEmailAndPassword(auth, email, password);
     await addActivityLog(user.uid, 'Logged in');
-    return user;
+    const pinRef = ref(db, `users/${user.uid}/pin`);
+    const snapshot = await get(pinRef);
+    const hasPin = snapshot.exists();
+    setHasSetupPin(hasPin);
+    return { user, hasPin };
+  };
+
+  // Log in with Google
+  const logInWithGoogle = async (): Promise<AuthResult> => {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const additionalInfo = getAdditionalUserInfo(result);
+
+    if (additionalInfo?.isNewUser) {
+      // Create initial user data for new Google users
+      await set(ref(db, `users/${result.user.uid}/storeInfo`), {
+        name: 'My Store',
+        address: '',
+        phone: ''
+      });
+      await addActivityLog(result.user.uid, 'Account created with Google');
+      setHasSetupPin(false);
+      return { user: result.user, hasPin: false };
+    } else {
+      await addActivityLog(result.user.uid, 'Logged in with Google');
+      const pinRef = ref(db, `users/${result.user.uid}/pin`);
+      const snapshot = await get(pinRef);
+      const hasPin = snapshot.exists();
+      setHasSetupPin(hasPin);
+      return { user: result.user, hasPin };
+    }
   };
 
   // Log out user
@@ -112,27 +147,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     return false;
-  };
-
-  // Log in with Google
-  const logInWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const additionalInfo = getAdditionalUserInfo(result);
-
-    if (additionalInfo?.isNewUser) {
-      // Create initial user data for new Google users
-      await set(ref(db, `users/${result.user.uid}/storeInfo`), {
-        name: 'My Store',
-        address: '',
-        phone: ''
-      });
-      await addActivityLog(result.user.uid, 'Account created with Google');
-    } else {
-      await addActivityLog(result.user.uid, 'Logged in with Google');
-    }
-
-    return result.user;
   };
 
   const value = {
