@@ -70,7 +70,7 @@ const Login: React.FC = () => {
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', damping: 10, delay: 0.2 }}
           >
-            <img src="/src/assets/logo.png" alt="ScannBizz Logo" className="w-full h-full object-contain" />
+            <img src="https://i.postimg.cc/ncqkDDBs/1943290-removebg-preview.png" alt="ScannBizz Logo" className="w-full h-full object-contain" />
           </motion.div>
           
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
