@@ -4,7 +4,10 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  User as FirebaseUser
+  User as FirebaseUser,
+  GoogleAuthProvider,
+  signInWithPopup,
+  getAdditionalUserInfo
 } from 'firebase/auth';
 import { ref, set, get } from 'firebase/database';
 import { auth, db } from '../firebase/config';
@@ -15,6 +18,7 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string) => Promise<FirebaseUser>;
   logIn: (email: string, password: string) => Promise<FirebaseUser>;
+  logInWithGoogle: () => Promise<FirebaseUser>;
   logOut: () => Promise<void>;
   setupPin: (pin: string) => Promise<void>;
   verifyPin: (pin: string) => Promise<boolean>;
@@ -110,11 +114,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return false;
   };
 
+  // Log in with Google
+  const logInWithGoogle = async () => {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    const additionalInfo = getAdditionalUserInfo(result);
+
+    if (additionalInfo?.isNewUser) {
+      // Create initial user data for new Google users
+      await set(ref(db, `users/${result.user.uid}/storeInfo`), {
+        name: 'My Store',
+        address: '',
+        phone: ''
+      });
+      await addActivityLog(result.user.uid, 'Account created with Google');
+    } else {
+      await addActivityLog(result.user.uid, 'Logged in with Google');
+    }
+
+    return result.user;
+  };
+
   const value = {
     currentUser,
     loading,
     signUp,
     logIn,
+    logInWithGoogle,
     logOut,
     setupPin,
     verifyPin,
