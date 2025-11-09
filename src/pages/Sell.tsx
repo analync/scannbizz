@@ -19,6 +19,8 @@ import { formatCurrency } from '../utils/dateUtils';
 import { generatePDFReceipt } from '../utils/receiptGenerator';
 import { storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+
+const Sell: React.FC = () => {
   const { 
     stock, 
     todaySales,
@@ -103,7 +105,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
   };
   
   // Handle sending receipt to WhatsApp
-  const handleSendToWhatsApp = async (customerNumber: string) => {
+  const handleSendToWhatsApp = async (customerNumber: string, amountGiven: number, change: number) => {
     if (todaySales.length === 0) {
       toast.error('No items in the receipt');
       return;
@@ -114,8 +116,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
       id: saleId,
       items: todaySales,
       total,
-      amountGiven: 0, // These will be updated in the confirmSale function
-      change: 0,
+      amountGiven,
+      change,
       customerNumber,
       saleTime: new Date().toISOString(),
     };
@@ -164,7 +166,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
         customerNumber,
       });
 
-      handleSendToWhatsApp(customerNumber);
+      handleSendToWhatsApp(customerNumber, amountGiven, change);
 
       // Reset sales after confirmation
       await resetDaySales(false); // Don't restore stock after sale
