@@ -19,6 +19,16 @@ export interface SaleItem extends Product {
   saleTime: string;
 }
 
+export interface ConfirmedSale {
+  id: string;
+  items: SaleItem[];
+  total: number;
+  amountGiven: number;
+  change: number;
+  customerNumber: string;
+  saleTime: string;
+}
+
 export interface StoreInfo {
   name: string;
   address: string;
@@ -38,6 +48,7 @@ interface DataContextType {
   sellProduct: (barcode: string, quantity: number) => Promise<void>;
   updateStoreInfo: (info: StoreInfo) => Promise<void>;
   resetDaySales: (restoreStock: boolean) => Promise<void>;
+  confirmSale: (sale: Omit<ConfirmedSale, 'id' | 'saleTime'>) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -187,6 +198,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await addActivityLog(uid, `Sold ${product.name} x${quantity}`);
   };
 
+  const confirmSale = async (sale: Omit<ConfirmedSale, 'id' | 'saleTime'>) => {
+    if (!currentUser) throw new Error('No authenticated user');
+
+    const uid = currentUser.uid;
+    const now = new Date().toISOString();
+    const saleId = push(ref(db, `users/${uid}/confirmedSales`)).key;
+
+    if (!saleId) throw new Error('Could not generate sale ID');
+
+    const newSale: ConfirmedSale = {
+      ...sale,
+      id: saleId,
+      saleTime: now,
+    };
+
+    await set(ref(db, `users/${uid}/confirmedSales/${saleId}`), newSale);
+    await addActivityLog(uid, `Confirmed sale of ${sale.items.length} items`);
+  };
+
   // Update store info
   const updateStoreInfo = async (info: StoreInfo) => {
     if (!currentUser) throw new Error('No authenticated user');
@@ -244,7 +274,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProduct,
     sellProduct,
     updateStoreInfo,
-    resetDaySales
+    resetDaySales,
+    confirmSale
   };
 
   return (
