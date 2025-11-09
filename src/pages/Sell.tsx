@@ -13,7 +13,11 @@ import { toast } from 'sonner';
 import { useData, SaleItem } from '../contexts/DataContext';
 import BarcodeScanner from '../components/scanner/BarcodeScanner';
 import ReceiptItem from '../components/sales/ReceiptItem';
+import ConfirmSaleModal from '../components/sales/ConfirmSaleModal';
 import { formatCurrency } from '../utils/dateUtils';
+import { generatePDFReceipt } from '../utils/receiptGenerator';
+import { storage } from '../firebase/config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const Sell: React.FC = () => {
   const { 
@@ -21,11 +25,15 @@ const Sell: React.FC = () => {
     todaySales,
     sellProduct, 
     resetDaySales,
-    loadingData 
+    loadingData,
+    confirmSale,
+    storeInfo,
+    updateSaleItemQuantity
   } = useData();
   
   const [showScanner, setShowScanner] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showConfirmSale, setShowConfirmSale] = useState(false);
   const [restoreStock, setRestoreStock] = useState(true);
   
   // Calculate total
@@ -35,7 +43,6 @@ const Sell: React.FC = () => {
   // Handle barcode scan for selling
   const handleScan = async (barcode: string) => {
     try {
-      // Find the product in stock
       const product = stock.find(p => p.barcode === barcode);
       
       if (!product) {
@@ -48,15 +55,25 @@ const Sell: React.FC = () => {
         return;
       }
       
-      // Sell the product (quantity 1)
       await sellProduct(barcode, 1);
+      toast.success(`${product.name} added to receipt`);
       
-      // Keep scanner open for multiple scans
-      // Don't close the scanner automatically
     } catch (error) {
-      console.error('Error selling product:', error);
-      toast.error('Failed to process sale');
-      setShowScanner(false);
+      console.error('Error scanning product:', error);
+      toast.error('Failed to process scan');
+    }
+  };
+
+  const handleUpdateQuantity = async (item: SaleItem, newQuantity: number) => {
+    try {
+      if (newQuantity === 0) {
+        handleRemoveItem(item);
+      } else {
+        await updateSaleItemQuantity(item.saleId, newQuantity);
+      }
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast.error('Failed to update quantity');
     }
   };
   
@@ -82,31 +99,43 @@ const Sell: React.FC = () => {
   };
   
   // Handle sending receipt to WhatsApp
-  const handleSendToWhatsApp = () => {
+  const handleSendToWhatsApp = async (customerNumber: string, amountGiven: number, change: number) => {
     if (todaySales.length === 0) {
       toast.error('No items in the receipt');
       return;
     }
-    
-    // Format receipt
-    let receiptText = "📝 *RECEIPT*\n\n";
-    
-    // Add items
-    todaySales.forEach((item, index) => {
-      receiptText += `${index + 1}. ${item.name}\n`;
-      receiptText += `   ${item.saleQuantity} x ${formatCurrency(item.price)} = ${formatCurrency(item.price * item.saleQuantity)}\n`;
-    });
-    
-    // Add total
-    receiptText += "\n-----------------------\n";
-    receiptText += `*TOTAL: ${formatCurrency(total)}*\n\n`;
-    
-    // Add timestamp
-    receiptText += `Date: ${new Date().toLocaleString()}\n`;
-    receiptText += "Thank you for your purchase!";
-    
-    // Open WhatsApp
-    window.open(`https://wa.me/?text=${encodeURIComponent(receiptText)}`);
+
+    const saleId = new Date().getTime().toString();
+    const confirmedSale = {
+      id: saleId,
+      items: todaySales,
+      total,
+      amountGiven,
+      change,
+      customerNumber,
+      saleTime: new Date().toISOString(),
+    };
+
+    const pdf = generatePDFReceipt(confirmedSale, storeInfo);
+    const pdfBlob = pdf.output('blob');
+
+    try {
+      const storageRef = ref(storage, `receipts/${saleId}.pdf`);
+      await uploadBytes(storageRef, pdfBlob);
+      const pdfUrl = await getDownloadURL(storageRef);
+
+      let receiptText = `🧾 *Modern Receipt* 🧾\n\n`;
+      receiptText += `Hello! Here is your receipt from *${storeInfo.name}*.\n\n`;
+      receiptText += `*Total:* ${formatCurrency(total)}\n`;
+      receiptText += `*Date:* ${new Date().toLocaleString()}\n\n`;
+      receiptText += `You can view your full receipt here:\n${pdfUrl}\n\n`;
+      receiptText += `🙏 Thank you for your purchase!`;
+
+      window.open(`https://wa.me/${customerNumber}?text=${encodeURIComponent(receiptText)}`);
+    } catch (error) {
+      console.error("Error uploading receipt:", error);
+      toast.error("Failed to send receipt. Please try again.");
+    }
   };
   
   // Handle reset sales
@@ -118,6 +147,29 @@ const Sell: React.FC = () => {
     } catch (error) {
       console.error('Error resetting sales:', error);
       toast.error('Failed to reset sales');
+    }
+  };
+
+  const handleConfirmSale = async (amountGiven: number, change: number, customerNumber: string) => {
+    try {
+      await confirmSale({
+        items: todaySales,
+        total,
+        amountGiven,
+        change,
+        customerNumber,
+      });
+
+      handleSendToWhatsApp(customerNumber, amountGiven, change);
+
+      // Reset sales after confirmation
+      await resetDaySales(false); // Don't restore stock after sale
+
+      toast.success('Sale confirmed and receipt sent!');
+      setShowConfirmSale(false);
+    } catch (error) {
+      console.error('Error confirming sale:', error);
+      toast.error('Failed to confirm sale');
     }
   };
 
@@ -153,6 +205,7 @@ const Sell: React.FC = () => {
                   key={item.saleId}
                   item={item}
                   onRemove={handleRemoveItem}
+                  onUpdateQuantity={handleUpdateQuantity}
                 />
               ))}
             </AnimatePresence>
@@ -180,12 +233,12 @@ const Sell: React.FC = () => {
             </button>
             
             <button
-              onClick={handleSendToWhatsApp}
+              onClick={() => setShowConfirmSale(true)}
               className="btn btn-primary"
               disabled={todaySales.length === 0}
             >
-              <Send size={18} className="mr-1" />
-              Share
+              <CheckSquare size={18} className="mr-1" />
+              Confirm Sale
             </button>
           </div>
         </div>
@@ -276,6 +329,17 @@ const Sell: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {showConfirmSale && (
+          <ConfirmSaleModal
+            total={total}
+            onClose={() => setShowConfirmSale(false)}
+            onConfirm={handleConfirmSale}
+          />
+        )}
+      </AnimatePresence>
+
     </div>
   );
 };

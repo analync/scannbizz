@@ -19,6 +19,16 @@ export interface SaleItem extends Product {
   saleTime: string;
 }
 
+export interface ConfirmedSale {
+  id: string;
+  items: SaleItem[];
+  total: number;
+  amountGiven: number;
+  change: number;
+  customerNumber: string;
+  saleTime: string;
+}
+
 export interface StoreInfo {
   name: string;
   address: string;
@@ -38,6 +48,8 @@ interface DataContextType {
   sellProduct: (barcode: string, quantity: number) => Promise<void>;
   updateStoreInfo: (info: StoreInfo) => Promise<void>;
   resetDaySales: (restoreStock: boolean) => Promise<void>;
+  confirmSale: (sale: Omit<ConfirmedSale, 'id' | 'saleTime'>) => Promise<void>;
+  updateSaleItemQuantity: (saleId: string, newQuantity: number) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -158,7 +170,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sellProduct = async (barcode: string, quantity: number) => {
     if (!currentUser) throw new Error('No authenticated user');
     
-    // Find the product in stock
     const product = stock.find(p => p.barcode === barcode);
     if (!product) throw new Error('Product not found');
     if (product.quantity < quantity) throw new Error('Not enough stock');
@@ -167,24 +178,75 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const today = formatDate(new Date());
     const now = new Date().toISOString();
     
-    // Update the stock quantity
-    const newQuantity = product.quantity - quantity;
-    await update(ref(db, `users/${uid}/stock/${barcode}`), {
-      quantity: newQuantity,
-      updatedAt: now
-    });
+    const existingSaleItem = todaySales.find(item => item.barcode === barcode);
     
-    // Record the sale
-    const saleRef = push(ref(db, `users/${uid}/sales/${today}`));
-    await set(saleRef, {
-      barcode,
-      name: product.name,
-      price: product.price,
-      saleQuantity: quantity,
-      saleTime: now
-    });
+    if (existingSaleItem) {
+      const newQuantity = existingSaleItem.saleQuantity + quantity;
+      await updateSaleItemQuantity(existingSaleItem.saleId, newQuantity);
+    } else {
+      const newStockQuantity = product.quantity - quantity;
+      await update(ref(db, `users/${uid}/stock/${barcode}`), {
+        quantity: newStockQuantity,
+        updatedAt: now
+      });
+
+      const saleRef = push(ref(db, `users/${uid}/sales/${today}`));
+      await set(saleRef, {
+        barcode,
+        name: product.name,
+        price: product.price,
+        saleQuantity: quantity,
+        saleTime: now
+      });
+    }
     
     await addActivityLog(uid, `Sold ${product.name} x${quantity}`);
+  };
+
+  const confirmSale = async (sale: Omit<ConfirmedSale, 'id' | 'saleTime'>) => {
+    if (!currentUser) throw new Error('No authenticated user');
+
+    const uid = currentUser.uid;
+    const now = new Date().toISOString();
+    const saleId = push(ref(db, `users/${uid}/confirmedSales`)).key;
+
+    if (!saleId) throw new Error('Could not generate sale ID');
+
+    const newSale: ConfirmedSale = {
+      ...sale,
+      id: saleId,
+      saleTime: now,
+    };
+
+    await set(ref(db, `users/${uid}/confirmedSales/${saleId}`), newSale);
+    await addActivityLog(uid, `Confirmed sale of ${sale.items.length} items`);
+  };
+
+  const updateSaleItemQuantity = async (saleId: string, newQuantity: number) => {
+    if (!currentUser) throw new Error('No authenticated user');
+
+    const uid = currentUser.uid;
+    const today = formatDate(new Date());
+    const saleItemRef = ref(db, `users/${uid}/sales/${today}/${saleId}`);
+    const snapshot = await get(saleItemRef);
+
+    if (!snapshot.exists()) throw new Error('Sale item not found');
+
+    const saleItem = snapshot.val();
+    const quantityDifference = newQuantity - saleItem.saleQuantity;
+
+    const productRef = ref(db, `users/${uid}/stock/${saleItem.barcode}`);
+    const productSnapshot = await get(productRef);
+
+    if (!productSnapshot.exists()) throw new Error('Product not found');
+
+    const product = productSnapshot.val();
+    const newStockQuantity = product.quantity - quantityDifference;
+
+    if (newStockQuantity < 0) throw new Error('Not enough stock');
+
+    await update(productRef, { quantity: newStockQuantity });
+    await update(saleItemRef, { saleQuantity: newQuantity });
   };
 
   // Update store info
@@ -244,7 +306,9 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     updateProduct,
     sellProduct,
     updateStoreInfo,
-    resetDaySales
+    resetDaySales,
+    confirmSale,
+    updateSaleItemQuantity
   };
 
   return (

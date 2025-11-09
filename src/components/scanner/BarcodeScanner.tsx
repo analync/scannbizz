@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { CameraOff, Zap, X, HandMetal, Camera } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { toast } from 'sonner';
+import ManualEntryModal from './ManualEntryModal';
 
 interface BarcodeScannerProps {
   onScan: (barcode: string) => void;
@@ -20,6 +21,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [hasCamera, setHasCamera] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [showManualEntry, setShowManualEntry] = useState(false);
 
   useEffect(() => {
     // Check if camera permissions are already granted
@@ -125,10 +127,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   };
 
   const handleManualEntry = () => {
-    const barcode = prompt('Enter barcode manually:');
-    if (barcode) {
-      onScan(barcode);
-    }
+    setShowManualEntry(true);
+  };
+
+  const handleConfirmManualEntry = (barcode: string) => {
+    onScan(barcode);
+    setShowManualEntry(false);
   };
 
   const renderContent = () => {
@@ -233,6 +237,12 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
           {renderContent()}
         </div>
       </motion.div>
+      {showManualEntry && (
+        <ManualEntryModal
+          onClose={() => setShowManualEntry(false)}
+          onConfirm={handleConfirmManualEntry}
+        />
+      )}
     </motion.div>
   );
 };

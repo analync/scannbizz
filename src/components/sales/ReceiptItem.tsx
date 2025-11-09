@@ -1,15 +1,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus, Minus } from 'lucide-react';
 import { SaleItem } from '../../contexts/DataContext';
 import { formatCurrency } from '../../utils/dateUtils';
 
 interface ReceiptItemProps {
   item: SaleItem;
   onRemove: (item: SaleItem) => void;
+  onUpdateQuantity: (item: SaleItem, newQuantity: number) => void;
 }
 
-const ReceiptItem: React.FC<ReceiptItemProps> = ({ item, onRemove }) => {
+const ReceiptItem: React.FC<ReceiptItemProps> = ({ item, onRemove, onUpdateQuantity }) => {
   const subtotal = item.price * item.saleQuantity;
   
   return (
@@ -31,7 +32,16 @@ const ReceiptItem: React.FC<ReceiptItemProps> = ({ item, onRemove }) => {
         </div>
         
         <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
-          <p>{item.saleQuantity} x {formatCurrency(item.price)}</p>
+          <div className="flex items-center gap-2">
+            <button onClick={() => onUpdateQuantity(item, item.saleQuantity - 1)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+              <Minus size={12} />
+            </button>
+            <span>{item.saleQuantity}</span>
+            <button onClick={() => onUpdateQuantity(item, item.saleQuantity + 1)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700">
+              <Plus size={12} />
+            </button>
+          </div>
+          <p>x {formatCurrency(item.price)}</p>
         </div>
       </div>
       
