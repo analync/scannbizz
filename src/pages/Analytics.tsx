@@ -9,7 +9,7 @@ import {
   LineChart,
   PieChart
 } from 'lucide-react';
-import { useData, SaleItem } from '../contexts/DataContext';
+import { useData, ConfirmedSale } from '../contexts/DataContext';
 import SalesChart from '../components/analytics/SalesChart';
 import { formatCurrency, formatDate, getDateRangeForPastDays } from '../utils/dateUtils';
 
@@ -25,7 +25,7 @@ interface DailySales {
 }
 
 const Analytics: React.FC = () => {
-  const { todaySales, loadingData } = useData();
+  const { confirmedSales, loadingData } = useData();
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
   const [dateRange, setDateRange] = useState(7);
   
@@ -33,44 +33,47 @@ const Analytics: React.FC = () => {
   const topProducts = React.useMemo(() => {
     const productMap = new Map<string, TopProduct>();
     
-    todaySales.forEach(sale => {
-      const existing = productMap.get(sale.barcode);
-      
-      if (existing) {
-        existing.quantity += sale.saleQuantity;
-        existing.revenue += sale.price * sale.saleQuantity;
-      } else {
-        productMap.set(sale.barcode, {
-          barcode: sale.barcode,
-          name: sale.name,
-          quantity: sale.saleQuantity,
-          revenue: sale.price * sale.saleQuantity
-        });
-      }
+    confirmedSales.forEach(sale => {
+      sale.items.forEach(item => {
+        const existing = productMap.get(item.barcode);
+
+        if (existing) {
+          existing.quantity += item.saleQuantity;
+          existing.revenue += item.price * item.saleQuantity;
+        } else {
+          productMap.set(item.barcode, {
+            barcode: item.barcode,
+            name: item.name,
+            quantity: item.saleQuantity,
+            revenue: item.price * item.saleQuantity
+          });
+        }
+      });
     });
     
     return Array.from(productMap.values())
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 5);
-  }, [todaySales]);
+  }, [confirmedSales]);
   
   // Create daily sales data for chart
   const dailySales: DailySales = React.useMemo(() => {
     const dates = getDateRangeForPastDays(dateRange);
     const salesByDate: DailySales = {};
     
-    // Initialize all dates with 0
     dates.forEach(date => {
       salesByDate[date] = 0;
     });
     
-    // Set today's sales
-    salesByDate[formatDate(new Date())] = todaySales.reduce(
-      (sum, sale) => sum + (sale.price * sale.saleQuantity), 0
-    );
+    confirmedSales.forEach(sale => {
+      const saleDate = formatDate(new Date(sale.saleTime));
+      if (salesByDate.hasOwnProperty(saleDate)) {
+        salesByDate[saleDate] += sale.total;
+      }
+    });
     
     return salesByDate;
-  }, [todaySales, dateRange]);
+  }, [confirmedSales, dateRange]);
   
   // Total revenue from the chart period
   const periodRevenue = Object.values(dailySales).reduce((sum, revenue) => sum + revenue, 0);

@@ -38,6 +38,7 @@ export interface StoreInfo {
 interface DataContextType {
   stock: Product[];
   todaySales: SaleItem[];
+  confirmedSales: ConfirmedSale[];
   storeInfo: StoreInfo;
   loadingData: boolean;
   todayRevenue: number;
@@ -58,6 +59,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { currentUser } = useAuth();
   const [stock, setStock] = useState<Product[]>([]);
   const [todaySales, setTodaySales] = useState<SaleItem[]>([]);
+  const [confirmedSales, setConfirmedSales] = useState<ConfirmedSale[]>([]);
   const [storeInfo, setStoreInfo] = useState<StoreInfo>({
     name: 'My Store',
     address: '',
@@ -131,10 +133,23 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoadingData(false);
     });
 
+    // Load confirmed sales
+    const confirmedSalesRef = ref(db, `users/${uid}/confirmedSales`);
+    const confirmedSalesUnsubscribe = onValue(confirmedSalesRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const salesData = snapshot.val();
+        const salesArray = Object.values(salesData) as ConfirmedSale[];
+        setConfirmedSales(salesArray);
+      } else {
+        setConfirmedSales([]);
+      }
+    });
+
     return () => {
       storeInfoUnsubscribe();
       stockUnsubscribe();
       salesUnsubscribe();
+      confirmedSalesUnsubscribe();
     };
   }, [currentUser]);
 
@@ -297,6 +312,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value = {
     stock,
     todaySales,
+    confirmedSales,
     storeInfo,
     loadingData,
     todayRevenue,

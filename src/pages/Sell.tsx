@@ -35,6 +35,7 @@ const Sell: React.FC = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showConfirmSale, setShowConfirmSale] = useState(false);
   const [restoreStock, setRestoreStock] = useState(true);
+  const [lastConfirmedSale, setLastConfirmedSale] = useState<any>(null);
   
   // Calculate total
   const total = todaySales.reduce((sum, item) => 
@@ -100,16 +101,16 @@ const Sell: React.FC = () => {
   
   // Handle sending receipt to WhatsApp
   const handleSendToWhatsApp = async (customerNumber: string, amountGiven: number, change: number) => {
-    if (todaySales.length === 0) {
-      toast.error('No items in the receipt');
+    if (!lastConfirmedSale) {
+      toast.error('No confirmed sale to send a receipt for.');
       return;
     }
 
     const saleId = new Date().getTime().toString();
     const confirmedSale = {
       id: saleId,
-      items: todaySales,
-      total,
+      items: lastConfirmedSale.items,
+      total: lastConfirmedSale.total,
       amountGiven,
       change,
       customerNumber,
@@ -152,20 +153,22 @@ const Sell: React.FC = () => {
 
   const handleConfirmSale = async (amountGiven: number, change: number, customerNumber: string) => {
     try {
-      await confirmSale({
+      const saleToConfirm = {
         items: todaySales,
         total,
         amountGiven,
         change,
         customerNumber,
-      });
+      };
 
-      handleSendToWhatsApp(customerNumber, amountGiven, change);
+      await confirmSale(saleToConfirm);
+
+      setLastConfirmedSale(saleToConfirm);
 
       // Reset sales after confirmation
       await resetDaySales(false); // Don't restore stock after sale
 
-      toast.success('Sale confirmed and receipt sent!');
+      toast.success('Sale confirmed!');
       setShowConfirmSale(false);
     } catch (error) {
       console.error('Error confirming sale:', error);
@@ -217,30 +220,50 @@ const Sell: React.FC = () => {
         )}
         
         <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex justify-between items-center mb-4">
-            <span className="font-medium">Total</span>
-            <span className="text-xl font-bold">{formatCurrency(total)}</span>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setShowResetConfirm(true)}
-              className="btn btn-outline"
-              disabled={todaySales.length === 0}
-            >
-              <RotateCcw size={18} className="mr-1" />
-              Reset
-            </button>
-            
-            <button
-              onClick={() => setShowConfirmSale(true)}
-              className="btn btn-primary"
-              disabled={todaySales.length === 0}
-            >
-              <CheckSquare size={18} className="mr-1" />
-              Confirm Sale
-            </button>
-          </div>
+          {lastConfirmedSale ? (
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={() => handleSendToWhatsApp(lastConfirmedSale.customerNumber, lastConfirmedSale.amountGiven, lastConfirmedSale.change)}
+                className="btn btn-primary"
+              >
+                <Send size={18} className="mr-1" />
+                Send Receipt
+              </button>
+              <button
+                onClick={() => setLastConfirmedSale(null)}
+                className="btn btn-outline"
+              >
+                New Sale
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-4">
+                <span className="font-medium">Total</span>
+                <span className="text-xl font-bold">{formatCurrency(total)}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  className="btn btn-outline"
+                  disabled={todaySales.length === 0}
+                >
+                  <RotateCcw size={18} className="mr-1" />
+                  Reset
+                </button>
+
+                <button
+                  onClick={() => setShowConfirmSale(true)}
+                  className="btn btn-primary"
+                  disabled={todaySales.length === 0}
+                >
+                  <CheckSquare size={18} className="mr-1" />
+                  Confirm Sale
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
       
