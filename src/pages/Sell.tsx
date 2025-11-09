@@ -28,7 +28,8 @@ const Sell: React.FC = () => {
     loadingData,
     confirmSale,
     storeInfo,
-    updateSaleItemQuantity
+    updateSaleItemQuantity,
+    addPdfUrlToSale
   } = useData();
   
   const [showScanner, setShowScanner] = useState(false);
@@ -106,11 +107,9 @@ const Sell: React.FC = () => {
       return;
     }
 
-    const saleId = new Date().getTime().toString();
+    const saleId = lastConfirmedSale.id;
     const confirmedSale = {
-      id: saleId,
-      items: lastConfirmedSale.items,
-      total: lastConfirmedSale.total,
+      ...lastConfirmedSale,
       amountGiven,
       change,
       customerNumber,
@@ -122,15 +121,28 @@ const Sell: React.FC = () => {
 
     try {
       const storageRef = ref(storage, `receipts/${saleId}.pdf`);
-      await uploadBytes(storageRef, pdfBlob);
+      const metadata = {
+        contentType: 'application/pdf',
+        contentDisposition: `attachment; filename="receipt-${saleId}.pdf"`,
+      };
+      await uploadBytes(storageRef, pdfBlob, metadata);
       const pdfUrl = await getDownloadURL(storageRef);
 
-      let receiptText = `🧾 *Modern Receipt* 🧾\n\n`;
-      receiptText += `Hello! Here is your receipt from *${storeInfo.name}*.\n\n`;
-      receiptText += `*Total:* ${formatCurrency(total)}\n`;
-      receiptText += `*Date:* ${new Date().toLocaleString()}\n\n`;
-      receiptText += `You can view your full receipt here:\n${pdfUrl}\n\n`;
-      receiptText += `🙏 Thank you for your purchase!`;
+      await addPdfUrlToSale(saleId, pdfUrl);
+
+      let receiptText = `🧾 *Your Receipt from ${storeInfo.name}* 🧾\n\n`;
+      receiptText += `Here are the details of your recent purchase:\n\n`;
+
+      lastConfirmedSale.items.forEach((item: SaleItem) => {
+        receiptText += `• ${item.name} (x${item.saleQuantity})\n`;
+      });
+
+      receiptText += `\n*Total:* ${formatCurrency(lastConfirmedSale.total)}\n`;
+      receiptText += `*Amount Paid:* ${formatCurrency(amountGiven)}\n`;
+      receiptText += `*Change:* ${formatCurrency(change)}\n\n`;
+      receiptText += `For a detailed view, you can download your PDF receipt here:\n${pdfUrl}\n\n`;
+      receiptText += `🙏 Thank you for your business!`;
+
 
       window.open(`https://wa.me/${customerNumber}?text=${encodeURIComponent(receiptText)}`);
     } catch (error) {
@@ -161,9 +173,9 @@ const Sell: React.FC = () => {
         customerNumber,
       };
 
-      await confirmSale(saleToConfirm);
+      const saleId = await confirmSale(saleToConfirm);
 
-      setLastConfirmedSale(saleToConfirm);
+      setLastConfirmedSale({ ...saleToConfirm, id: saleId });
 
       // Reset sales after confirmation
       await resetDaySales(false); // Don't restore stock after sale
