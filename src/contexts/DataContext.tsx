@@ -49,6 +49,7 @@ interface DataContextType {
   updateStoreInfo: (info: StoreInfo) => Promise<void>;
   resetDaySales: (restoreStock: boolean) => Promise<void>;
   confirmSale: (sale: Omit<ConfirmedSale, 'id' | 'saleTime'>) => Promise<void>;
+  updateSaleItemQuantity: (saleId: string, newQuantity: number) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -217,6 +218,33 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await addActivityLog(uid, `Confirmed sale of ${sale.items.length} items`);
   };
 
+  const updateSaleItemQuantity = async (saleId: string, newQuantity: number) => {
+    if (!currentUser) throw new Error('No authenticated user');
+
+    const uid = currentUser.uid;
+    const today = formatDate(new Date());
+    const saleItemRef = ref(db, `users/${uid}/sales/${today}/${saleId}`);
+    const snapshot = await get(saleItemRef);
+
+    if (!snapshot.exists()) throw new Error('Sale item not found');
+
+    const saleItem = snapshot.val();
+    const quantityDifference = newQuantity - saleItem.saleQuantity;
+
+    const productRef = ref(db, `users/${uid}/stock/${saleItem.barcode}`);
+    const productSnapshot = await get(productRef);
+
+    if (!productSnapshot.exists()) throw new Error('Product not found');
+
+    const product = productSnapshot.val();
+    const newStockQuantity = product.quantity - quantityDifference;
+
+    if (newStockQuantity < 0) throw new Error('Not enough stock');
+
+    await update(productRef, { quantity: newStockQuantity });
+    await update(saleItemRef, { saleQuantity: newQuantity });
+  };
+
   // Update store info
   const updateStoreInfo = async (info: StoreInfo) => {
     if (!currentUser) throw new Error('No authenticated user');
@@ -275,7 +303,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sellProduct,
     updateStoreInfo,
     resetDaySales,
-    confirmSale
+    confirmSale,
+    updateSaleItemQuantity
   };
 
   return (

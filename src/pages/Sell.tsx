@@ -28,7 +28,8 @@ const Sell: React.FC = () => {
     resetDaySales,
     loadingData,
     confirmSale,
-    storeInfo
+    storeInfo,
+    updateSaleItemQuantity
   } = useData();
   
   const [showScanner, setShowScanner] = useState(false);
@@ -57,7 +58,6 @@ const Sell: React.FC = () => {
         return;
       }
       
-      toast.success(`${product.name} scanned successfully!`);
       setScannedProduct(product);
       setShowQuantityInput(true);
       setShowScanner(false);
@@ -65,7 +65,6 @@ const Sell: React.FC = () => {
     } catch (error) {
       console.error('Error scanning product:', error);
       toast.error('Failed to process scan');
-      setShowScanner(false);
     }
   };
 
@@ -80,6 +79,19 @@ const Sell: React.FC = () => {
     } catch (error) {
       console.error('Error selling product:', error);
       toast.error('Failed to process sale');
+    }
+  };
+
+  const handleUpdateQuantity = async (item: SaleItem, newQuantity: number) => {
+    try {
+      if (newQuantity === 0) {
+        handleRemoveItem(item);
+      } else {
+        await updateSaleItemQuantity(item.saleId, newQuantity);
+      }
+    } catch (error) {
+      console.error('Error updating quantity:', error);
+      toast.error('Failed to update quantity');
     }
   };
   
@@ -211,6 +223,7 @@ const Sell: React.FC = () => {
                   key={item.saleId}
                   item={item}
                   onRemove={handleRemoveItem}
+                  onUpdateQuantity={handleUpdateQuantity}
                 />
               ))}
             </AnimatePresence>
