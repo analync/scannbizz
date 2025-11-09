@@ -9,10 +9,22 @@ interface QuantityInputModalProps {
 }
 
 const QuantityInputModal: React.FC<QuantityInputModalProps> = ({ productName, onClose, onAdd }) => {
+  // State to hold the input's value. It's a string, as input values are.
   const [quantity, setQuantity] = useState('1');
 
+  // This handler is called every time the user types in the input.
+  // It receives the browser event `e`, and we update the state
+  // to match the input's current value. This is the core of a
+  // "controlled component" in React.
+  const handleQuantityChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuantity(e.target.value);
+  };
+
   const handleAdd = () => {
+    // We parse the string quantity from the state into a number.
     const numQuantity = parseInt(quantity, 10);
+
+    // Validate that the result is a positive number before proceeding.
     if (isNaN(numQuantity) || numQuantity <= 0) {
       alert('Please enter a valid quantity.');
       return;
@@ -52,10 +64,12 @@ const QuantityInputModal: React.FC<QuantityInputModalProps> = ({ productName, on
             <input
               type="number"
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              // The onChange handler is crucial. Without it, React would prevent
+              // the input from changing because its value is locked to the 'quantity' state.
+              onChange={handleQuantityChange}
               placeholder="Enter quantity"
               className="input w-full"
-              autoFocus
+              autoFocus // Automatically focuses the input when the modal opens.
             />
           </div>
 
