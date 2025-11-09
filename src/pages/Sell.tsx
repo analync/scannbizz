@@ -14,7 +14,6 @@ import { useData, SaleItem } from '../contexts/DataContext';
 import BarcodeScanner from '../components/scanner/BarcodeScanner';
 import ReceiptItem from '../components/sales/ReceiptItem';
 import ConfirmSaleModal from '../components/sales/ConfirmSaleModal';
-import QuantityInputModal from '../components/sales/QuantityInputModal';
 import { formatCurrency } from '../utils/dateUtils';
 import { generatePDFReceipt } from '../utils/receiptGenerator';
 import { storage } from '../firebase/config';
@@ -36,8 +35,6 @@ const Sell: React.FC = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showConfirmSale, setShowConfirmSale] = useState(false);
   const [restoreStock, setRestoreStock] = useState(true);
-  const [showQuantityInput, setShowQuantityInput] = useState(false);
-  const [scannedProduct, setScannedProduct] = useState<any>(null);
   
   // Calculate total
   const total = todaySales.reduce((sum, item) => 
@@ -58,27 +55,12 @@ const Sell: React.FC = () => {
         return;
       }
       
-      setScannedProduct(product);
-      setShowQuantityInput(true);
-      setShowScanner(false);
+      await sellProduct(barcode, 1);
+      toast.success(`${product.name} added to receipt`);
       
     } catch (error) {
       console.error('Error scanning product:', error);
       toast.error('Failed to process scan');
-    }
-  };
-
-  const handleAddProduct = async (quantity: number) => {
-    if (!scannedProduct) return;
-
-    try {
-      await sellProduct(scannedProduct.barcode, quantity);
-      toast.success(`${scannedProduct.name} added to receipt`);
-      setShowQuantityInput(false);
-      setScannedProduct(null);
-    } catch (error) {
-      console.error('Error selling product:', error);
-      toast.error('Failed to process sale');
     }
   };
 
@@ -358,18 +340,6 @@ const Sell: React.FC = () => {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>
-        {showQuantityInput && scannedProduct && (
-          <QuantityInputModal
-            productName={scannedProduct.name}
-            onClose={() => {
-              setShowQuantityInput(false);
-              setScannedProduct(null);
-            }}
-            onAdd={handleAddProduct}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 };

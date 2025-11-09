@@ -170,7 +170,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const sellProduct = async (barcode: string, quantity: number) => {
     if (!currentUser) throw new Error('No authenticated user');
     
-    // Find the product in stock
     const product = stock.find(p => p.barcode === barcode);
     if (!product) throw new Error('Product not found');
     if (product.quantity < quantity) throw new Error('Not enough stock');
@@ -179,22 +178,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const today = formatDate(new Date());
     const now = new Date().toISOString();
     
-    // Update the stock quantity
-    const newQuantity = product.quantity - quantity;
-    await update(ref(db, `users/${uid}/stock/${barcode}`), {
-      quantity: newQuantity,
-      updatedAt: now
-    });
+    const existingSaleItem = todaySales.find(item => item.barcode === barcode);
     
-    // Record the sale
-    const saleRef = push(ref(db, `users/${uid}/sales/${today}`));
-    await set(saleRef, {
-      barcode,
-      name: product.name,
-      price: product.price,
-      saleQuantity: quantity,
-      saleTime: now
-    });
+    if (existingSaleItem) {
+      const newQuantity = existingSaleItem.saleQuantity + quantity;
+      await updateSaleItemQuantity(existingSaleItem.saleId, newQuantity);
+    } else {
+      const newStockQuantity = product.quantity - quantity;
+      await update(ref(db, `users/${uid}/stock/${barcode}`), {
+        quantity: newStockQuantity,
+        updatedAt: now
+      });
+
+      const saleRef = push(ref(db, `users/${uid}/sales/${today}`));
+      await set(saleRef, {
+        barcode,
+        name: product.name,
+        price: product.price,
+        saleQuantity: quantity,
+        saleTime: now
+      });
+    }
     
     await addActivityLog(uid, `Sold ${product.name} x${quantity}`);
   };
