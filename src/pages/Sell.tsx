@@ -14,10 +14,13 @@ import { useData, SaleItem } from '../contexts/DataContext';
 import BarcodeScanner from '../components/scanner/BarcodeScanner';
 import ReceiptItem from '../components/sales/ReceiptItem';
 import ConfirmSaleModal from '../components/sales/ConfirmSaleModal';
+import ShareReceiptModal from '../components/sales/ShareReceiptModal';
 import { formatCurrency } from '../utils/dateUtils';
-import { generatePDFReceipt } from '../utils/receiptGenerator';
 import { storage } from '../firebase/config';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import html2canvas from 'html2canvas';
+import Receipt from '../components/Receipt';
+import ReactDOM from 'react-dom';
 
 const Sell: React.FC = () => {
   const { 
@@ -29,12 +32,13 @@ const Sell: React.FC = () => {
     confirmSale,
     storeInfo,
     updateSaleItemQuantity,
-    addPdfUrlToSale
+    addReceiptUrlToSale
   } = useData();
   
   const [showScanner, setShowScanner] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showConfirmSale, setShowConfirmSale] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [restoreStock, setRestoreStock] = useState(true);
   const [lastConfirmedSale, setLastConfirmedSale] = useState<any>(null);
   
@@ -101,53 +105,49 @@ const Sell: React.FC = () => {
   };
   
   // Handle sending receipt to WhatsApp
-  const handleSendToWhatsApp = async (customerNumber: string, amountGiven: number, change: number) => {
+  const handleSendToWhatsApp = async (customerNumber: string) => {
     if (!lastConfirmedSale) {
       toast.error('No confirmed sale to send a receipt for.');
       return;
     }
 
-    const saleId = lastConfirmedSale.id;
-    const confirmedSale = {
-      ...lastConfirmedSale,
-      amountGiven,
-      change,
-      customerNumber,
-      saleTime: new Date().toISOString(),
-    };
+    const receiptContainer = document.createElement('div');
+    document.body.appendChild(receiptContainer);
 
-    const pdf = generatePDFReceipt(confirmedSale, storeInfo);
-    const pdfBlob = pdf.output('blob');
+    ReactDOM.render(
+      <Receipt saleDetails={{ ...lastConfirmedSale, customerNumber }} storeInfo={storeInfo} />,
+      receiptContainer
+    );
 
     try {
-      const storageRef = ref(storage, `receipts/${saleId}.pdf`);
-      const metadata = {
-        contentType: 'application/pdf',
-        contentDisposition: `attachment; filename="receipt-${saleId}.pdf"`,
-      };
-      await uploadBytes(storageRef, pdfBlob, metadata);
-      const pdfUrl = await getDownloadURL(storageRef);
+      const canvas = await html2canvas(receiptContainer.firstChild as HTMLElement);
+      const pngUrl = canvas.toDataURL('image/png');
+      const blob = await (await fetch(pngUrl)).blob();
 
-      await addPdfUrlToSale(saleId, pdfUrl);
+      const storageRef = ref(storage, `receipts/${lastConfirmedSale.id}.png`);
+      const metadata = {
+        contentType: 'image/png',
+        contentDisposition: `attachment; filename="receipt-${lastConfirmedSale.id}.png"`,
+      };
+      await uploadBytes(storageRef, blob, metadata);
+      const downloadUrl = await getDownloadURL(storageRef);
+
+      await addReceiptUrlToSale(lastConfirmedSale.id, downloadUrl);
 
       let receiptText = `🧾 *Your Receipt from ${storeInfo.name}* 🧾\n\n`;
-      receiptText += `Here are the details of your recent purchase:\n\n`;
-
-      lastConfirmedSale.items.forEach((item: SaleItem) => {
-        receiptText += `• ${item.name} (x${item.saleQuantity})\n`;
-      });
-
-      receiptText += `\n*Total:* ${formatCurrency(lastConfirmedSale.total)}\n`;
-      receiptText += `*Amount Paid:* ${formatCurrency(amountGiven)}\n`;
-      receiptText += `*Change:* ${formatCurrency(change)}\n\n`;
-      receiptText += `For a detailed view, you can download your PDF receipt here:\n${pdfUrl}\n\n`;
+      receiptText += `Here's a summary of your purchase. You can download the full receipt image here:\n${downloadUrl}\n\n`;
       receiptText += `🙏 Thank you for your business!`;
 
-
       window.open(`https://wa.me/${customerNumber}?text=${encodeURIComponent(receiptText)}`);
+
+      setLastConfirmedSale(null); // Clear for next sale
+      setShowShareModal(false);
     } catch (error) {
-      console.error("Error uploading receipt:", error);
-      toast.error("Failed to send receipt. Please try again.");
+      console.error("Error generating or sending receipt:", error);
+      toast.error("Failed to generate receipt image. Please try again.");
+    } finally {
+      ReactDOM.unmountComponentAtNode(receiptContainer);
+      document.body.removeChild(receiptContainer);
     }
   };
   
@@ -163,14 +163,13 @@ const Sell: React.FC = () => {
     }
   };
 
-  const handleConfirmSale = async (amountGiven: number, change: number, customerNumber: string) => {
+  const handleConfirmSale = async (amountGiven: number, change: number) => {
     try {
       const saleToConfirm = {
         items: todaySales,
         total,
         amountGiven,
         change,
-        customerNumber,
       };
 
       const saleId = await confirmSale(saleToConfirm);
@@ -235,11 +234,11 @@ const Sell: React.FC = () => {
           {lastConfirmedSale ? (
             <div className="flex flex-col gap-3">
               <button
-                onClick={() => handleSendToWhatsApp(lastConfirmedSale.customerNumber, lastConfirmedSale.amountGiven, lastConfirmedSale.change)}
+                onClick={() => setShowShareModal(true)}
                 className="btn btn-primary"
               >
                 <Send size={18} className="mr-1" />
-                Send Receipt
+                Share Receipt
               </button>
               <button
                 onClick={() => setLastConfirmedSale(null)}
@@ -375,6 +374,14 @@ const Sell: React.FC = () => {
         )}
       </AnimatePresence>
 
+      <AnimatePresence>
+        {showShareModal && (
+          <ShareReceiptModal
+            onClose={() => setShowShareModal(false)}
+            onSend={handleSendToWhatsApp}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

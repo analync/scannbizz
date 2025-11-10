@@ -31,6 +31,7 @@ const Analytics: React.FC = () => {
   
   // Calculate top-selling products
   const topProducts = React.useMemo(() => {
+    if (!confirmedSales || confirmedSales.length === 0) return [];
     const productMap = new Map<string, TopProduct>();
     
     confirmedSales.forEach(sale => {
@@ -58,6 +59,7 @@ const Analytics: React.FC = () => {
   
   // Create daily sales data for chart
   const dailySales: DailySales = React.useMemo(() => {
+    if (!confirmedSales || confirmedSales.length === 0) return {};
     const dates = getDateRangeForPastDays(dateRange);
     const salesByDate: DailySales = {};
     

@@ -6,12 +6,11 @@ import { formatCurrency } from '../../utils/dateUtils';
 interface ConfirmSaleModalProps {
   total: number;
   onClose: () => void;
-  onConfirm: (amountGiven: number, change: number, customerNumber: string) => void;
+  onConfirm: (amountGiven: number, change: number) => void;
 }
 
 const ConfirmSaleModal: React.FC<ConfirmSaleModalProps> = ({ total, onClose, onConfirm }) => {
   const [amountGiven, setAmountGiven] = useState('');
-  const [customerNumber, setCustomerNumber] = useState('');
 
   const change = useMemo(() => {
     const given = parseFloat(amountGiven);
@@ -27,7 +26,7 @@ const ConfirmSaleModal: React.FC<ConfirmSaleModalProps> = ({ total, onClose, onC
       alert('Amount given must be greater than or equal to the total.');
       return;
     }
-    onConfirm(given, change, customerNumber);
+    onConfirm(given, change);
   };
 
   return (
@@ -55,21 +54,6 @@ const ConfirmSaleModal: React.FC<ConfirmSaleModalProps> = ({ total, onClose, onC
         </div>
 
         <div className="p-6">
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Customer Number
-            </label>
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                value={customerNumber}
-                onChange={(e) => setCustomerNumber(e.target.value)}
-                placeholder="Enter customer's number"
-                className="input pl-10 w-full"
-              />
-            </div>
-          </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Amount Given

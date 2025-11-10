@@ -52,7 +52,7 @@ interface DataContextType {
   resetDaySales: (restoreStock: boolean) => Promise<void>;
   confirmSale: (sale: Omit<ConfirmedSale, 'id' | 'saleTime'>) => Promise<string | null>;
   updateSaleItemQuantity: (saleId: string, newQuantity: number) => Promise<void>;
-  addPdfUrlToSale: (saleId: string, pdfUrl: string) => Promise<void>;
+  addReceiptUrlToSale: (saleId: string, url: string) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -240,14 +240,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return saleId;
   };
 
-  const addPdfUrlToSale = async (saleId: string, pdfUrl: string) => {
-    if (!currentUser) throw new Error('No authenticated user');
-
-    const uid = currentUser.uid;
-    const saleRef = ref(db, `users/${uid}/confirmedSales/${saleId}`);
-    await update(saleRef, { pdfUrl });
-  };
-
   const updateSaleItemQuantity = async (saleId: string, newQuantity: number) => {
     if (!currentUser) throw new Error('No authenticated user');
 
@@ -273,6 +265,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     await update(productRef, { quantity: newStockQuantity });
     await update(saleItemRef, { saleQuantity: newQuantity });
+  };
+
+  const addReceiptUrlToSale = async (saleId: string, url: string) => {
+    if (!currentUser) throw new Error('No authenticated user');
+
+    const uid = currentUser.uid;
+    const saleRef = ref(db, `users/${uid}/confirmedSales/${saleId}`);
+    await update(saleRef, { receiptUrl: url });
   };
 
   // Update store info
@@ -336,7 +336,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     resetDaySales,
     confirmSale,
     updateSaleItemQuantity,
-    addPdfUrlToSale
+    addReceiptUrlToSale
   };
 
   return (
