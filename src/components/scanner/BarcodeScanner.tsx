@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
-import { CameraOff, Zap, X, HandMetal, Camera } from 'lucide-react';
-import { Html5Qrcode } from 'html5-qrcode';
+import { motion, AnimatePresence } from 'framer-motion';
+import { CameraOff, Zap, X, HandMetal, Camera, CheckCircle } from 'lucide-react';
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { toast } from 'sonner';
 
 interface BarcodeScannerProps {
@@ -20,6 +20,7 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
   const [hasCamera, setHasCamera] = useState(true);
   const [torchOn, setTorchOn] = useState(false);
   const [permissionState, setPermissionState] = useState<'prompt' | 'granted' | 'denied'>('prompt');
+  const [scanSuccess, setScanSuccess] = useState(false);
 
   useEffect(() => {
     // Check if camera permissions are already granted
@@ -63,40 +64,47 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
         
         // Initialize scanner
         const scannerId = 'barcode-scanner';
-        const scanner = new Html5Qrcode(scannerId);
+        const config = {
+          fps: 20,
+          qrbox: { width: 280, height: 280 },
+          aspectRatio: 1.0,
+          supportedScanTypes: [0], // 0 for Code128, adjust as needed
+          experimentalFeatures: {
+            useBarCodeDetectorIfSupported: true
+          }
+        };
+        const scanner = new Html5Qrcode(scannerId, {
+          verbose: false,
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ]
+        });
         scannerRef.current = scanner;
         
         // Start scanning
         await scanner.start(
           { facingMode: 'environment' },
-          {
-            fps: 10,
-            qrbox: {
-              width: 250,
-              height: 250
-            },
-            aspectRatio: 1.0
-          },
+          config,
           (decodedText) => {
             // On successful scan
+            if (scanSuccess) return; // Avoid multiple triggers
+
+            setScanSuccess(true);
+
             const successSound = new Audio('/success-sound.mp3');
-            successSound.play().catch(() => {
-              // Silent fail if audio can't play
-            });
+            successSound.play().catch(() => {});
             
-            // Vibrate if available
-            if (navigator.vibrate) {
-              navigator.vibrate(100);
-            }
+            if (navigator.vibrate) navigator.vibrate(150);
             
-            // Pass the barcode to parent
             onScan(decodedText);
-            
-            // Show toast
             toast.success('Scan successful');
+
+            // Reset success state after a short delay
+            setTimeout(() => setScanSuccess(false), 800);
           },
           (errorMessage) => {
-            // Silent error handling during scanning
             console.debug(errorMessage);
           }
         );
@@ -172,9 +180,22 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({
 
     return (
       <div className="relative">
-        <div className="scanner-container aspect-video bg-black">
+        <div className="scanner-container aspect-video bg-black rounded-lg overflow-hidden">
           <div id="barcode-scanner" className="w-full h-full"></div>
           
+          <AnimatePresence>
+            {scanSuccess && (
+              <motion.div
+                className="absolute inset-0 bg-green-500/80 flex items-center justify-center"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+              >
+                <CheckCircle size={80} className="text-white" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="scan-area">
             <div className="corner corner-top-left"></div>
             <div className="corner corner-top-right"></div>
