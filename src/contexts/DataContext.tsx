@@ -28,6 +28,7 @@ export interface StoreInfo {
 interface DataContextType {
   stock: Product[];
   todaySales: SaleItem[];
+  currentReceipt: SaleItem[];
   storeInfo: StoreInfo;
   loadingData: boolean;
   todayRevenue: number;
@@ -35,9 +36,12 @@ interface DataContextType {
   lowStockItems: Product[];
   addProduct: (product: Omit<Product, 'updatedAt'>) => Promise<void>;
   updateProduct: (product: Product) => Promise<void>;
-  sellProduct: (barcode: string, quantity: number) => Promise<void>;
+  addToReceipt: (barcode: string, quantity: number) => Promise<void>;
+  removeFromReceipt: (saleId: string) => Promise<void>;
+  updateReceiptItemQuantity: (saleId: string, newQuantity: number) => void;
+  confirmPayment: () => Promise<void>;
+  clearReceipt: (restoreStock: boolean) => Promise<void>;
   updateStoreInfo: (info: StoreInfo) => Promise<void>;
-  resetDaySales: (restoreStock: boolean) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -46,6 +50,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { currentUser } = useAuth();
   const [stock, setStock] = useState<Product[]>([]);
   const [todaySales, setTodaySales] = useState<SaleItem[]>([]);
+  const [currentReceipt, setCurrentReceipt] = useState<SaleItem[]>([]);
   const [storeInfo, setStoreInfo] = useState<StoreInfo>({
     name: 'My Store',
     address: '',
@@ -154,37 +159,95 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await addActivityLog(currentUser.uid, `Updated ${product.name}`);
   };
 
-  // Sell a product
-  const sellProduct = async (barcode: string, quantity: number) => {
-    if (!currentUser) throw new Error('No authenticated user');
-    
-    // Find the product in stock
+  // Add item to current receipt
+  const addToReceipt = async (barcode: string, quantity: number) => {
     const product = stock.find(p => p.barcode === barcode);
-    if (!product) throw new Error('Product not found');
+    if (!product) throw new Error('Product not found in stock');
     if (product.quantity < quantity) throw new Error('Not enough stock');
+
+    setCurrentReceipt(prevReceipt => {
+      const existingItem = prevReceipt.find(item => item.barcode === barcode);
+      if (existingItem) {
+        return prevReceipt.map(item =>
+          item.barcode === barcode
+            ? { ...item, saleQuantity: item.saleQuantity + quantity }
+            : item
+        );
+      } else {
+        const newItem: SaleItem = {
+          ...product,
+          saleId: `local-${Date.now()}`,
+          saleQuantity: quantity,
+          saleTime: new Date().toISOString()
+        };
+        return [...prevReceipt, newItem];
+      }
+    });
+  };
+
+  // Remove item from current receipt
+  const removeFromReceipt = async (saleId: string) => {
+    setCurrentReceipt(prevReceipt => prevReceipt.filter(item => item.saleId !== saleId));
+  };
+
+  // Update item quantity in current receipt
+  const updateReceiptItemQuantity = (saleId: string, newQuantity: number) => {
+    setCurrentReceipt(prevReceipt => prevReceipt.map(item =>
+      item.saleId === saleId ? { ...item, saleQuantity: newQuantity } : item
+    ));
+  };
+
+  // Confirm payment and save the sale to Firebase
+  const confirmPayment = async () => {
+    if (!currentUser) throw new Error('No authenticated user');
+    if (currentReceipt.length === 0) throw new Error('Receipt is empty');
     
     const uid = currentUser.uid;
     const today = formatDate(new Date());
     const now = new Date().toISOString();
     
-    // Update the stock quantity
-    const newQuantity = product.quantity - quantity;
-    await update(ref(db, `users/${uid}/stock/${barcode}`), {
-      quantity: newQuantity,
-      updatedAt: now
-    });
-    
-    // Record the sale
-    const saleRef = push(ref(db, `users/${uid}/sales/${today}`));
-    await set(saleRef, {
-      barcode,
-      name: product.name,
-      price: product.price,
-      saleQuantity: quantity,
-      saleTime: now
-    });
-    
-    await addActivityLog(uid, `Sold ${product.name} x${quantity}`);
+    // Create a batch of updates
+    const updates: { [key: string]: any } = {};
+    let activityLog = 'Sale confirmed: ';
+
+    for (const item of currentReceipt) {
+      const productInStock = stock.find(p => p.barcode === item.barcode);
+      if (!productInStock) throw new Error(`Product ${item.name} not found`);
+
+      const newQuantity = productInStock.quantity - item.saleQuantity;
+      if (newQuantity < 0) throw new Error(`Not enough stock for ${item.name}`);
+
+      // Update stock quantity
+      updates[`users/${uid}/stock/${item.barcode}/quantity`] = newQuantity;
+      updates[`users/${uid}/stock/${item.barcode}/updatedAt`] = now;
+      
+      // Add sale record
+      const saleRef = push(ref(db, `users/${uid}/sales/${today}`));
+      updates[`users/${uid}/sales/${today}/${saleRef.key}`] = {
+        ...item,
+        saleId: saleRef.key, // Use the Firebase key as the final saleId
+        saleTime: now,
+      };
+      
+      activityLog += `${item.name} (x${item.saleQuantity}), `;
+    }
+
+    // Perform the batch update
+    await update(ref(db), updates);
+    await addActivityLog(uid, activityLog.slice(0, -2));
+
+    // Clear the current receipt
+    setCurrentReceipt([]);
+  };
+
+  // Clear the current receipt (e.g., cancel sale)
+  const clearReceipt = async (restoreStock: boolean) => {
+    // Since stock is now only updated on confirm, we just need to clear the local receipt.
+    // The 'restoreStock' parameter might be useful if we were to optimistically update UI, but not for now.
+    setCurrentReceipt([]);
+    if (currentUser) {
+      await addActivityLog(currentUser.uid, 'Cleared current receipt');
+    }
   };
 
   // Update store info
@@ -195,46 +258,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await addActivityLog(currentUser.uid, 'Updated store information');
   };
 
-  // Reset day's sales
-  const resetDaySales = async (restoreStock: boolean) => {
-    if (!currentUser) throw new Error('No authenticated user');
-    
-    const uid = currentUser.uid;
-    const today = formatDate(new Date());
-    
-    // If we need to restore stock
-    if (restoreStock && todaySales.length > 0) {
-      // Group sales by barcode and sum quantities
-      const salesByBarcode = todaySales.reduce<Record<string, number>>((acc, sale) => {
-        acc[sale.barcode] = (acc[sale.barcode] || 0) + sale.saleQuantity;
-        return acc;
-      }, {});
-      
-      // Update stock for each barcode
-      const updatePromises = Object.entries(salesByBarcode).map(async ([barcode, quantity]) => {
-        const productRef = ref(db, `users/${uid}/stock/${barcode}`);
-        const snapshot = await get(productRef);
-        
-        if (snapshot.exists()) {
-          const product = snapshot.val();
-          await update(productRef, {
-            quantity: product.quantity + quantity,
-            updatedAt: new Date().toISOString()
-          });
-        }
-      });
-      
-      await Promise.all(updatePromises);
-    }
-    
-    // Clear today's sales
-    await set(ref(db, `users/${uid}/sales/${today}`), null);
-    await addActivityLog(uid, `Reset sales${restoreStock ? ' and restored stock' : ''}`);
-  };
-
   const value = {
     stock,
     todaySales,
+    currentReceipt,
     storeInfo,
     loadingData,
     todayRevenue,
@@ -242,9 +269,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     lowStockItems,
     addProduct,
     updateProduct,
-    sellProduct,
+    addToReceipt,
+    removeFromReceipt,
+    updateReceiptItemQuantity,
+    confirmPayment,
+    clearReceipt,
     updateStoreInfo,
-    resetDaySales
   };
 
   return (
