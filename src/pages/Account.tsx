@@ -10,7 +10,8 @@ import {
   Moon,
   Sun,
   LockKeyhole,
-  Send
+  Send,
+  Info
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,6 +26,29 @@ const Account: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<StoreInfo>(storeInfo);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const containerVariants = {
+    hidden: { opacity: 1 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.1,
+      },
+    },
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.3,
+        ease: 'easeOut',
+      },
+    },
+  };
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -66,16 +90,19 @@ const Account: React.FC = () => {
   };
   
   return (
-    <div className="p-4 pb-20">
+    <motion.div
+      className="p-4 pb-20"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+    >
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Account</h1>
       </div>
       
       <motion.div
         className="card mb-6"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
+        variants={itemVariants}
       >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -84,12 +111,13 @@ const Account: React.FC = () => {
           </h2>
           
           {!isEditing && (
-            <button
+            <motion.button
               onClick={() => setIsEditing(true)}
               className="btn btn-ghost p-2"
+              whileTap={{ scale: 0.95 }}
             >
               <Settings size={18} />
-            </button>
+            </motion.button>
           )}
         </div>
         
@@ -163,7 +191,7 @@ const Account: React.FC = () => {
             </div>
             
             <div className="mt-6 flex gap-3">
-              <button
+              <motion.button
                 type="button"
                 onClick={() => {
                   setIsEditing(false);
@@ -171,19 +199,21 @@ const Account: React.FC = () => {
                 }}
                 className="btn btn-outline flex-1"
                 disabled={isSubmitting}
+                whileTap={{ scale: 0.95 }}
               >
                 Cancel
-              </button>
+              </motion.button>
               
-              <button
+              <motion.button
                 type="submit"
                 className="btn btn-primary flex-1"
                 disabled={isSubmitting}
+                whileTap={{ scale: 0.95 }}
               >
                 {isSubmitting ? (
                   <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white\" xmlns="http://www.w3.org/2000/svg\" fill="none\" viewBox="0 0 24 24">
-                      <circle className="opacity-25\" cx="12\" cy="12\" r="10\" stroke="currentColor\" strokeWidth="4"></circle>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
                     Saving...
@@ -194,7 +224,7 @@ const Account: React.FC = () => {
                     Save Changes
                   </span>
                 )}
-              </button>
+              </motion.button>
             </div>
           </form>
         ) : (
@@ -232,9 +262,7 @@ const Account: React.FC = () => {
       
       <motion.div
         className="card mb-6"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.1 }}
+        variants={itemVariants}
       >
         <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
           <User size={20} className="text-primary-500" />
@@ -254,9 +282,7 @@ const Account: React.FC = () => {
       
       <motion.div
         className="card mb-6"
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.2 }}
+        variants={itemVariants}
       >
         <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
           <Settings size={20} className="text-primary-500" />
@@ -274,36 +300,52 @@ const Account: React.FC = () => {
               <span>Dark Mode</span>
             </div>
             
-            <button
+            <motion.button
               onClick={toggleTheme}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
                 theme === 'dark' ? 'bg-primary-500' : 'bg-gray-300 dark:bg-gray-600'
               }`}
+              whileTap={{ scale: 0.90 }}
             >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  theme === 'dark' ? 'translate-x-6' : 'translate-x-1'
-                }`}
+              <motion.span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                initial={false}
+                animate={{ x: theme === 'dark' ? 24 : 4 }}
+                transition={{ type: 'spring', stiffness: 700, damping: 30 }}
               />
-            </button>
+            </motion.button>
           </div>
+        </div>
+      </motion.div>
+
+      <motion.div
+        className="card mb-6"
+        variants={itemVariants}
+      >
+        <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+          <Info size={20} className="text-primary-500" />
+          About
+        </h2>
+        <div className="space-y-3">
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+                Developed by Analyn, a girl student at Masvingo Polytechnic
+            </p>
         </div>
       </motion.div>
       
       <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.3 }}
+        variants={itemVariants}
       >
-        <button
+        <motion.button
           onClick={handleLogout}
           className="btn btn-outline w-full text-error-600 dark:text-error-400 border-error-300 dark:border-error-700 hover:bg-error-50 dark:hover:bg-error-900/20"
+          whileTap={{ scale: 0.95 }}
         >
           <LogOut size={18} className="mr-2" />
           Log Out
-        </button>
+        </motion.button>
       </motion.div>
-    </div>
+    </motion.div>
   );
 };
 
